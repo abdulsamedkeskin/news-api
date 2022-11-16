@@ -1,5 +1,6 @@
 from api import create_app
 
 def run():
-    create_app().run(debug=True)
+    app, socket = create_app()
+    socket.run(app, debug=True)
 run()

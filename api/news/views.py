@@ -1,9 +1,12 @@
-from flask import Blueprint, request
+from flask import Blueprint
 import feedparser
 from ..constants import src
 from dateutil import parser
 from dateutil.tz import gettz
 from datetime import datetime, time
+from api import socket
+from flask_socketio import emit
+import json
 
 news = Blueprint("news", __name__, url_prefix="/news")
 
@@ -46,14 +49,33 @@ def latest_news():
     for k,v in src.items():
         news = feedparser.parse(v)
         items = ['title', 'link', 'published', 'summary', 'author','media_content']
-        total = 0
         for i in news.entries[:2]:
             res = {}
             for _ in i.keys():
                 if _ in items:
                     if _ == "published":
-                        print(i[_])
                         i[_] = parser.parse(i[_], default=default_date)
                     res.update({f"{_}": i[_]})
             results.append(res)
     return sorted(results, key= lambda x: x['published'], reverse=True)
+
+@socket.on('latest_news')
+def socket_last_news(message):
+    if message == 'update':        
+        default_date = datetime.combine(datetime.now(),time(0, tzinfo=gettz("Europe/Istanbul")))
+        results = []
+        for k,v in src.items():
+            news = feedparser.parse(v)
+            items = ['title', 'link', 'published', 'summary', 'author','media_content']
+            for i in news.entries[:2]:
+                res = {}
+                for _ in i.keys():
+                    if _ in items:
+                        if _ == "published":
+                            i[_] = parser.parse(i[_], default=default_date)
+                        res.update({f"{_}": i[_]})
+                results.append(res)
+        results = sorted(results, key= lambda x: x['published'], reverse=True)[:3]
+        emit('latest_news',json.dumps(results, default=str, ensure_ascii=False), broadcast=True)
+    else:
+        emit('latest_news', 'bad request')
